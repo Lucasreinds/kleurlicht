@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kleurlicht</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { width: 100%; height: 100%; overflow: hidden; }
+
+/* ── Background ─────────────────────────────── */
+#bg {
+  position: fixed; inset: 0;
+  background: #ff7043;
+  transition: background 0.6s cubic-bezier(0.4,0,0.2,1);
+  z-index: 0;
+}
+
+/* ── Panel ──────────────────────────────────── */
+#panel {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+  transition: opacity 0.4s ease;
+}
+#panel.hidden { opacity: 0; pointer-events: none; }
+
+/* Apple card: no border, pure frosted glass, big radius */
+#card {
+  width: min(380px, calc(100vw - 32px));
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(60px) saturate(2);
+  -webkit-backdrop-filter: blur(60px) saturate(2);
+  border-radius: 26px;
+  /* No border — Apple never uses a visible stroke on their glass cards */
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.22),
+    0 8px 24px rgba(0,0,0,0.10);
+  font-family: -apple-system, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  animation: cardIn 0.5s cubic-bezier(0.34,1.4,0.64,1) both;
+  overflow: hidden;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: scale(0.94) translateY(16px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+#panel.hidden #card { animation: none; }
+
+#inner { padding: 28px; display: flex; flex-direction: column; gap: 22px; }
+
+/* ── Title ──────────────────────────────────── */
+#title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+  line-height: 1.1;
+}
+
+/* ── Picker ─────────────────────────────────── */
+#picker-area { display: flex; gap: 12px; }
+
+#sv-wrap {
+  position: relative;
+  width: min(210px, calc(100vw - 140px)); height: min(210px, calc(100vw - 140px));
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: crosshair;
+  flex-shrink: 0;
+  background: #f00;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+#sv-sat { position: absolute; inset: 0; background: linear-gradient(to right, #fff, transparent); }
+#sv-val { position: absolute; inset: 0; background: linear-gradient(to bottom, transparent, #000); }
+#sv-cursor {
+  position: absolute;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.18), 0 2px 10px rgba(0,0,0,0.25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#hue-col { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+
+#hue-track {
+  position: relative; flex: 1; min-height: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  background: linear-gradient(to bottom,
+    #f00 0%, #ff0 16.67%, #0f0 33.33%,
+    #0ff 50%, #00f 66.67%, #f0f 83.33%, #f00 100%);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+}
+#hue-thumb {
+  position: absolute; left: 50%;
+  width: 26px; height: 8px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#preview {
+  height: 44px; border-radius: 12px; flex-shrink: 0;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  transition: background 0.25s ease;
+}
+
+/* ── Divider ────────────────────────────────── */
+.sep { height: 1px; background: rgba(0,0,0,0.08); }
+
+/* ── Control rows ───────────────────────────── */
+.ctrl { display: flex; align-items: center; gap: 12px; }
+
+/* Apple-style label: medium weight, actual readable size */
+.lbl {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+  min-width: 90px;
+}
+
+/* Hex input — Apple input style: no border, filled bg */
+#hexWrap {
+  flex: 1;
+  background: rgba(0,0,0,0.06);
+  border-radius: 10px;
+  padding: 9px 13px;
+  display: flex; align-items: center;
+  transition: background 0.15s;
+}
+#hexWrap:focus-within { background: rgba(0,0,0,0.10); }
+#hexInput {
+  background: transparent; border: none; outline: none;
+  color: #1d1d1f;
+  font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  width: 100%;
+}
+#hexInput::placeholder { color: rgba(0,0,0,0.3); }
+#hexInput.err { color: #ff3b30; }
+
+/* Heart save button */
+#saveBtn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.06);
+  border: none; cursor: pointer;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  color: #1d1d1f;
+  transition: background 0.2s, transform 0.2s cubic-bezier(0.34,1.56,0.64,1), color 0.2s;
+  flex-shrink: 0;
+}
+#saveBtn:hover { background: rgba(0,0,0,0.10); }
+#saveBtn.ok {
+  color: #ff2d55;
+  transform: scale(1.25);
+  background: rgba(255,45,85,0.10);
+}
+
+/* Brightness slider — Apple style, rounded pill track */
+#brightness {
+  -webkit-appearance: none;
+  flex: 1; height: 6px; border-radius: 3px;
+  outline: none; cursor: pointer; border: none;
+}
+#brightness::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.22), 0 0 0 0.5px rgba(0,0,0,0.06);
+  cursor: grab;
+  transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+}
+#brightness::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.15); }
+
+#bVal {
+  font-size: 14px; font-weight: 400;
+  color: rgba(0,0,0,0.4);
+  min-width: 36px; text-align: right;
+  letter-spacing: -0.01em;
+}
+
+/* ── Favorites ──────────────────────────────── */
+#fav-section { display: flex; flex-direction: column; gap: 12px; }
+
+.sec-lbl {
+  font-size: 15px; font-weight: 500;
+  color: #1d1d1f; letter-spacing: -0.01em;
+}
+
+#fav-row {
+  display: flex; gap: 8px;
+  flex-wrap: wrap; min-height: 36px; align-items: center;
+}
+
+.fsw {
+  width: 36px; height: 36px; border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.14);
+  cursor: pointer; position: relative; flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
+}
+.fsw:hover { transform: scale(1.12); box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
+.fsw .x {
+  display: none; position: absolute; top: -5px; right: -5px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #636366; color: #fff;
+  font-size: 10px; align-items: center; justify-content: center;
+  cursor: pointer; line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.fsw:hover .x { display: flex; }
+.fsw .x:hover { background: #ff3b30; }
+
+#no-fav {
+  font-size: 14px; color: rgba(0,0,0,0.3);
+  font-weight: 400; letter-spacing: -0.01em;
+}
+
+/* ── Footer ─────────────────────────────────── */
+#footer {
+  padding: 14px 28px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#footer a {
+  font-size: 13px; font-weight: 400;
+  color: #0071e3; text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: opacity 0.15s;
+}
+#footer a:hover { opacity: 0.7; }
+#footer-hint {
+  font-size: 12px;
+  color: rgba(0,0,0,0.3);
+  letter-spacing: -0.01em;
+}
+
+/* ── Show button ────────────────────────────── */
+#showBtn {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  background: rgba(255,255,255,0.28);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: none;
+  border-radius: 980px;
+  padding: 12px 28px;
+  color: rgba(255,255,255,0.9);
+  font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  -webkit-font-smoothing: antialiased;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+#showBtn.vis { opacity: 1; pointer-events: all; }
+#showBtn:hover { background: rgba(255,255,255,0.38); }
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<button id="showBtn" onclick="showPanel()" aria-label="Toon paneel">Toon paneel</button>
+
+<div id="panel">
+  <div id="card">
+    <div id="inner">
+
+      <div id="title">Kleurlicht</div>
+
+      <div id="picker-area">
+        <div id="sv-wrap">
+          <div id="sv-sat"></div>
+          <div id="sv-val"></div>
+          <div id="sv-cursor"></div>
+        </div>
+        <div id="hue-col">
+          <div id="hue-track"><div id="hue-thumb"></div></div>
+          <div id="preview"></div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="ctrl">
+        <label for="hexInput" class="lbl">Hex</label>
+        <div id="hexWrap">
+          <input type="text" id="hexInput" maxlength="7" placeholder="#FF7043" spellcheck="false" autocomplete="off" aria-label="Hexadecimale kleurcode">
+        </div>
+        <button id="saveBtn" onclick="saveFav()" title="Opslaan als favoriet" aria-label="Kleur opslaan als favoriet">♡</button>
+      </div>
+
+      <div class="ctrl">
+        <label for="brightness" class="lbl">Helderheid</label>
+        <input type="range" id="brightness" min="0" max="100" value="100" aria-label="Helderheid">
+        <span id="bVal">100%</span>
+      </div>
+
+      <div class="sep"></div>
+
+      <div id="fav-section">
+        <div class="sec-lbl">Favorieten</div>
+        <div id="fav-row"><span id="no-fav">Nog geen favorieten</span></div>
+      </div>
+
+    </div>
+
+    <div id="footer">
+      <a href="https://pankra.com" target="_blank" rel="noopener">pankra.com</a>
+      <span id="footer-hint">H of Esc voor paneel</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function hsvToRgb(h,s,v){h=((h%360)+360)%360;const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r,g,b;if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
+function rgbToHex(r,g,b){return'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');}
+function hexToRgb(hex){hex=hex.replace('#','');if(hex.length===3)hex=hex.split('').map(c=>c+c).join('');const n=parseInt(hex,16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function rgbToHsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0,s=mx===0?0:d/mx,v=mx;if(d!==0){if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}return[h,s,v];}
+function normalizeHex(raw){
+  let v=raw.trim().replace(/^#+/,'');
+  if(v.length===3)v=v.split('').map(c=>c+c).join('');
+  if(v.length===6)return('#'+v).toUpperCase();
+  return null;
+}
+function validHex(h){return/^#[0-9a-fA-F]{6}$/.test(h);}
+
+let hsv={h:14,s:0.73,v:1.0},bri=100,favs=[],panelVis=true;
+try{favs=JSON.parse(localStorage.getItem('kl_favs')||'[]');}catch(e){}
+// Migrate old string-only format
+favs=favs.map(f=>typeof f==='string'?{hex:f,bri:100}:f);
+
+const bg=document.getElementById('bg'),svWrap=document.getElementById('sv-wrap'),
+  svCur=document.getElementById('sv-cursor'),hueTrk=document.getElementById('hue-track'),
+  hueThb=document.getElementById('hue-thumb'),prev=document.getElementById('preview'),
+  hexInp=document.getElementById('hexInput'),bSlide=document.getElementById('brightness'),
+  bValEl=document.getElementById('bVal'),saveBt=document.getElementById('saveBtn'),
+  panel=document.getElementById('panel'),showBt=document.getElementById('showBtn'),
+  favRow=document.getElementById('fav-row'),noFav=document.getElementById('no-fav');
+
+function baseHex(){const[r,g,b]=hsvToRgb(hsv.h,hsv.s,hsv.v);return rgbToHex(r,g,b);}
+function applyBri(hex,b){const[r,g,bb]=hexToRgb(hex),f=b/100;return rgbToHex(r*f,g*f,bb*f);}
+
+function render(){
+  const base=baseHex(),fin=applyBri(base,bri);
+  bg.style.background=fin;
+  prev.style.background=fin;
+  if(document.activeElement!==hexInp){hexInp.value=base.toUpperCase();hexInp.classList.remove('err');}
+  const[hr,hg,hb]=hsvToRgb(hsv.h,1,1);
+  svWrap.style.background=rgbToHex(hr,hg,hb);
+  svCur.style.left=(hsv.s*100)+'%';
+  svCur.style.top=((1-hsv.v)*100)+'%';
+  svCur.style.background=base;
+  hueThb.style.top=(hsv.h/360*100)+'%';
+  bSlide.style.background=`linear-gradient(to right,rgba(0,0,0,0.15),${base})`;
+  bValEl.textContent=bri+'%';
+}
+
+let dSV=false;
+function svEv(e){const r=svWrap.getBoundingClientRect(),cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;hsv.s=Math.max(0,Math.min(1,(cx-r.left)/r.width));hsv.v=Math.max(0,Math.min(1,1-(cy-r.top)/r.height));render();}
+svWrap.addEventListener('mousedown',e=>{dSV=true;svEv(e);});
+svWrap.addEventListener('touchstart',e=>{dSV=true;svEv(e);e.preventDefault();},{passive:false});
+document.addEventListener('mousemove',e=>{if(dSV)svEv(e);});
+document.addEventListener('touchmove',e=>{if(dSV){svEv(e);e.preventDefault();}},{passive:false});
+document.addEventListener('mouseup',()=>dSV=false);
+document.addEventListener('touchend',()=>dSV=false);
+
+let dH=false;
+function hueEv(e){const r=hueTrk.getBoundingClientRect(),cy=e.touches?e.touches[0].clientY:e.clientY;hsv.h=Math.max(0,Math.min(359.99,((cy-r.top)/r.height)*360));render();}
+hueTrk.addEventListener('mousedown',e=>{dH=true;hueEv(e);});
+hueTrk.addEventListener('touchstart',e=>{dH=true;hueEv(e);e.preventDefault();},{passive:false});
+document.addEventListener('mousemove',e=>{if(dH)hueEv(e);});
+document.addEventListener('touchmove',e=>{if(dH){hueEv(e);e.preventDefault();}},{passive:false});
+document.addEventListener('mouseup',()=>dH=false);
+document.addEventListener('touchend',()=>dH=false);
+
+hexInp.addEventListener('input',e=>{
+  const norm=normalizeHex(e.target.value);
+  if(norm&&validHex(norm)){const[r,g,b]=hexToRgb(norm);const[h,s,vv]=rgbToHsv(r,g,b);hsv={h,s,v:vv};hexInp.classList.remove('err');render();}
+  else hexInp.classList.add('err');
+});
+hexInp.addEventListener('keydown',e=>{if(e.key==='Enter')hexInp.blur();});
+hexInp.addEventListener('click',e=>e.stopPropagation());
+
+bSlide.addEventListener('input',e=>{bri=+e.target.value;render();});
+
+function saveFavs(){try{localStorage.setItem('kl_favs',JSON.stringify(favs));}catch(e){}}
+function saveFav(){
+  const hex=baseHex();
+  if(favs.some(f=>f.hex===hex))return;
+  favs.unshift({hex,bri});if(favs.length>20)favs=favs.slice(0,20);
+  saveFavs();renderFavs();
+  saveBt.textContent='♥';saveBt.classList.add('ok');
+  setTimeout(()=>{saveBt.textContent='♡';saveBt.classList.remove('ok');},1500);
+}
+
+function renderFavs(){
+  favRow.innerHTML='';
+  if(!favs.length){favRow.appendChild(noFav);return;}
+  favs.forEach((fav,i)=>{
+    const sw=document.createElement('div');
+    sw.className='fsw';sw.style.background=fav.hex;
+    sw.title=fav.hex.toUpperCase()+(fav.bri<100?' · '+fav.bri+'%':'');
+    sw.setAttribute('role','button');
+    sw.setAttribute('aria-label','Laad kleur '+fav.hex.toUpperCase());
+    const x=document.createElement('div');x.className='x';x.textContent='×';
+    x.setAttribute('role','button');
+    x.setAttribute('aria-label','Verwijder favoriet '+fav.hex.toUpperCase());
+    x.addEventListener('click',e=>{e.stopPropagation();favs.splice(i,1);saveFavs();renderFavs();});
+    sw.addEventListener('click',e=>{
+      e.stopPropagation();
+      const[r,g,b]=hexToRgb(fav.hex);const[h,s,v]=rgbToHsv(r,g,b);
+      hsv={h,s,v};bri=fav.bri;
+      bSlide.value=bri;
+      render();
+    });
+    sw.appendChild(x);favRow.appendChild(sw);
+  });
+}
+
+function hidePanel(){panelVis=false;panel.classList.add('hidden');showBt.classList.add('vis');}
+function showPanel(){panelVis=true;panel.classList.remove('hidden');showBt.classList.remove('vis');}
+
+bg.addEventListener('click',()=>{if(!panelVis)showPanel();});
+panel.addEventListener('click',e=>{if(e.target===panel)hidePanel();});
+document.getElementById('card').addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('keydown',e=>{
+  if(document.activeElement===hexInp)return;
+  if(e.key==='h'||e.key==='H'||e.key==='Escape')panelVis?hidePanel():showPanel();
+});
+
+renderFavs();render();
+</script>
+</body>
+</html>
