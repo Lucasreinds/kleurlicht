@@ -1,6 +1,6 @@
 # Kleurlicht
 
-Gebruik je scherm als kleurlicht tijdens videobellen.
+Gebruik je scherm als gratis videobel-verlichting.
 
 👉 https://lucasreinds.github.io/kleurlicht
 
